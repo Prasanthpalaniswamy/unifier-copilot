@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "unifier-copilot": {
+            "command": "C:/DevWorks/Primavera/Unifier/Unifier_gemini/.venv/Scripts/python.exe",
+            "args": [
+                "C:/DevWorks/Primavera/Unifier/Unifier_gemini/mcp_unifier_server.py"
+            ],
+            "env": {}
+        }
+    }
+}
