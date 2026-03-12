@@ -1,1 +1,6 @@
+<<<<<<< HEAD
 *.py text eol=lf
+=======
+# Auto detect text files and perform LF normalization
+* text=auto
+>>>>>>> 963f720be62e837d4812b0257a0f88be57b588f1
