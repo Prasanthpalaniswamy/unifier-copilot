@@ -1,7 +1,13 @@
 import sys
 import os
 import builtins
-
+from fastmcp import FastMCP
+from unifier_client import get_projects, get_data_elements, get_data_definitions, create_data_elements, get_users, get_bp_records
+from dotenv import load_dotenv
+from pathlib import Path
+import pandas as pd
+from datetime import datetime
+load_dotenv()
 # Save the original print and stdout
 _original_stdout = sys.stdout
 _original_print = builtins.print
@@ -14,12 +20,7 @@ def silent_print(*args, **kwargs):
 builtins.print = silent_print
 sys.stdout = sys.stderr
 
-from fastmcp import FastMCP
-from unifier_client import get_projects, get_data_elements, get_data_definitions, create_data_elements, get_users, get_bp_records
-from dotenv import load_dotenv
-from pathlib import Path
-import pandas as pd
-from datetime import datetime
+
 
 mcp = FastMCP("unifier-gemini")
 
@@ -216,7 +217,21 @@ def list_bp_records(
 
     return get_bp_records(bpname=bpname, project_number=project_number, options=options, limit=limit, offset=offset)
 
+# if __name__ == "__main__":
+#     # Restore the original stdout for the MCP protocol just before running
+#     sys.stdout = _original_stdout
+#     mcp.run(transport='stdio')
 if __name__ == "__main__":
-    # Restore the original stdout for the MCP protocol just before running
-    sys.stdout = _original_stdout
-    mcp.run(transport='stdio')
+
+    port = os.environ.get("PORT")
+
+    if port:
+        print(f"Running in HTTP mode on port {port}", file=sys.stderr)
+        mcp.run(transport="http", host="0.0.0.0", port=int(port))
+    else:
+        print("Running in STDIO mode (local development)", file=sys.stderr)
+
+        # Restore stdout only for MCP stdio transport
+        sys.stdout = _original_stdout
+
+        mcp.run(transport="stdio")
