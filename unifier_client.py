@@ -43,7 +43,7 @@ def get_token(force_refresh=False):
     response = SESSION.get(
         url,
         auth=HTTPBasicAuth(USERNAME, PASSWORD),
-        timeout=30
+        timeout=150
     )
 
     response.raise_for_status()
@@ -73,7 +73,7 @@ def unifier_get(endpoint, params=None):
         url,
         headers=headers,
         params=params,
-        timeout=30
+        timeout=150
     )
 
     if response.status_code == 401:
@@ -84,7 +84,7 @@ def unifier_get(endpoint, params=None):
             url,
             headers=headers,
             params=params,
-            timeout=30
+            timeout=150
         )
 
     response.raise_for_status()
@@ -106,7 +106,7 @@ def unifier_post(endpoint, data):
         url,
         headers=headers,
         json=data,
-        timeout=30
+        timeout=150
     )
 
     if response.status_code == 401:
@@ -117,7 +117,7 @@ def unifier_post(endpoint, data):
             url,
             headers=headers,
             json=data,
-            timeout=30
+            timeout=150
         )
 
     response.raise_for_status()
@@ -128,18 +128,36 @@ def unifier_post(endpoint, data):
 # -------------------------------
 # Unifier API Wrappers
 # -------------------------------
-def get_projects(shell_type="Projects"):
+def get_projects(shell_type="Projects", limit=None, offset=0):
     options = {
         "filter": {
             "shell_type": shell_type
         }
     }
 
+    # Pass limit/offset server-side so Unifier returns only what we need
+    if limit is not None:
+        options["limit"] = limit
+        options["offset"] = offset
+
     params = {
         "options": json.dumps(options)
     }
 
-    return unifier_get("/admin/shell", params=params)
+    result = unifier_get("/admin/shell", params=params)
+
+    # Also apply client-side pagination as a fallback (in case API ignores limit/offset)
+    data = result.get("data", [])
+    if limit is not None and len(data) > limit:
+        total = len(data)
+        result["data"] = data[offset : offset + limit]
+        result["pagination"] = {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "count": len(result["data"])
+        }
+    return result
 
 
 def get_project_cost(project_id):
@@ -150,7 +168,7 @@ def get_rfis(project_id):
     return unifier_get(f"/projects/{project_id}/rfis")
 
 
-def get_data_elements(filter_options=None):
+def get_data_elements(filter_options=None, limit=None, offset=0):
     """
     Fetch data elements from Unifier.
     filter_options: dict containing data_element, data_definition, form_label, description, tooltip
@@ -159,10 +177,23 @@ def get_data_elements(filter_options=None):
     if filter_options:
         params["filter"] = json.dumps(filter_options)
 
-    return unifier_get("/ds/data-elements", params=params)
+    result = unifier_get("/ds/data-elements", params=params)
+    
+    # Client-side pagination if limit is specified
+    if limit is not None:
+        data = result.get("data", [])
+        total = len(data)
+        result["data"] = data[offset : offset + limit]
+        result["pagination"] = {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "count": len(result["data"])
+        }
+    return result
 
 
-def get_data_definitions(df_type=None, filter_options=None):
+def get_data_definitions(df_type=None, filter_options=None, limit=None, offset=0):
     """
     Fetch data definitions from Unifier.
     df_type: Basic, Cost Codes, Data Picker
@@ -174,7 +205,20 @@ def get_data_definitions(df_type=None, filter_options=None):
     if filter_options:
         params["filter"] = json.dumps(filter_options)
 
-    return unifier_get("/ds/data-def", params=params)
+    result = unifier_get("/ds/data-def", params=params)
+    
+    # Client-side pagination if limit is specified
+    if limit is not None:
+        data = result.get("data", [])
+        total = len(data)
+        result["data"] = data[offset : offset + limit]
+        result["pagination"] = {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "count": len(result["data"])
+        }
+    return result
 
 
 def create_data_elements(elements_list):
@@ -187,4 +231,60 @@ def create_data_elements(elements_list):
     }
     return unifier_post("/ds/data-elements", data=data)
 
-
+
+def get_users(filter_condition=None, limit=None, offset=0):
+    """
+    Fetch users from Unifier.
+    Uses POST /ws/rest/service/v1/admin/user/get
+    """
+    payload = {}
+    if filter_condition:
+        payload["filterCondition"] = filter_condition
+
+    result = unifier_post("/admin/user/get", data=payload)
+    
+    # Client-side pagination if limit is specified
+    if limit is not None:
+        data = result.get("data", [])
+        total = len(data)
+        result["data"] = data[offset : offset + limit]
+        result["pagination"] = {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "count": len(result["data"])
+        }
+    return result
+
+
+def get_bp_records(bpname: str, project_number: str = None, options: dict = None, limit: int = None, offset: int = 0):
+    """
+    Fetch BP records from Unifier. 
+    If project_number is provided, fetches Project level records. Else Company level.
+    Uses POST /ws/rest/service/v1/bp/records/{project_number}
+    """
+    if project_number:
+        endpoint = f"/bp/records/{project_number}"
+    else:
+        endpoint = "/bp/records"
+        
+    payload = {"bpname": bpname}
+    if options:
+        payload.update(options)
+
+    result = unifier_post(endpoint, data=payload)
+    
+    # Client-side pagination if limit is specified
+    if limit is not None:
+        data = result.get("data", [])
+        total = len(data)
+        result["data"] = data[offset : offset + limit]
+        result["pagination"] = {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "count": len(result["data"])
+        }
+    return result
+
+

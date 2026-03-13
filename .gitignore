@@ -1,0 +1,84 @@
+# ---------------------------
+# Python cache
+# ---------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ---------------------------
+# Virtual environments
+# ---------------------------
+venv/
+.env/
+.env
+.venv/
+env/
+ENV/
+
+# ---------------------------
+# Environment variables / secrets
+# ---------------------------
+.env.local
+.env.development
+.env.production
+*.env
+
+# ---------------------------
+# Jupyter notebooks
+# ---------------------------
+.ipynb_checkpoints/
+
+# ---------------------------
+# Logs
+# ---------------------------
+*.log
+logs/
+
+# ---------------------------
+# OS generated files
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Python build files
+# ---------------------------
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ---------------------------
+# IDE files
+# ---------------------------
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ---------------------------
+# Testing / coverage
+# ---------------------------
+.coverage
+htmlcov/
+.pytest_cache/
+
+# ---------------------------
+# Temporary files
+# ---------------------------
+*.tmp
+*.temp
+
+# ---------------------------
+# Ollama / AI local files
+# ---------------------------
+models/
+*.gguf
+
+# ---------------------------
+# MCP / tool configs (optional)
+# ---------------------------
+mcp_config_local.json
+local_settings.json

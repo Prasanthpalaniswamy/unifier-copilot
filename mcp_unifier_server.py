@@ -1,51 +1,32 @@
-from fastmcp import FastMCP
-from unifier_client import get_projects, get_data_elements, get_data_definitions, create_data_elements
+import sys
 import os
+import builtins
+
+# Save the original print and stdout
+_original_stdout = sys.stdout
+_original_print = builtins.print
+
+# Override print to always go to stderr
+def silent_print(*args, **kwargs):
+    kwargs['file'] = sys.stderr
+    _original_print(*args, **kwargs)
+
+builtins.print = silent_print
+sys.stdout = sys.stderr
+
+from fastmcp import FastMCP
+from unifier_client import get_projects, get_data_elements, get_data_definitions, create_data_elements, get_users, get_bp_records
 from dotenv import load_dotenv
 from pathlib import Path
-import os
+import pandas as pd
+from datetime import datetime
 
-
-# DATABASE_URL = os.environ.get("DATABASE_URL")
-# BASE_DIR = Path(__file__).resolve().parent.parent
-# print(BASE_DIR)
-# load_dotenv(BASE_DIR / ".env")
- 
-# UNIFIER_USERNAME = os.environ.get("UNIFIER_USERNAME")
-# UNIFIER_PASSWORD = os.environ.get("UNIFIER_PASSWORD")
-
-
-# BASE_DIR = Path(__file__).resolve().parent
-# # .parent
-# print(BASE_DIR)
-# load_dotenv(BASE_DIR / ".env")    
-# UNIFIER_USERNAME = os.environ.get("UNIFIER_USERNAME")
-# UNIFIER_PASSWORD = os.environ.get("UNIFIER_PASSWORD")
-
-
-# os.environ["UNIFIER_USERNAME"] = "intuser"
-# os.environ["UNIFIER_PASSWORD"] = "intuser@123"
-# print("Environment Variables after setting:")
-# print("UNIFIER_USERNAME:", os.getenv("UNIFIER_USERNAME"))
-# print("UNIFIER_PASSWORD:", os.getenv("UNIFIER_PASSWORD"))
-
-# print("Environment Variables:")
-# print("UNIFIER_USERNAME:", os.getenv("UNIFIER_USERNAME"))
-# print("UNIFIER_PASSWORD:", os.getenv("UNIFIER_PASSWORD"))
-
-# , get_project_cost, get_rfis
-
-# print("Getting Projects")
 mcp = FastMCP("unifier-gemini")
 
-
 @mcp.tool()
-def list_projects(shell_type: str = "Projects"):
+def list_projects(shell_type: str = "Projects", limit: int = 50, offset: int = 0):
     """Return list of projects from Unifier"""
-    print("Environment Variables in list_projects:")
-
-    return get_projects(shell_type=shell_type)
-
+    return get_projects(shell_type=shell_type, limit=limit, offset=offset)
 
 @mcp.tool()
 def list_data_elements(
@@ -53,7 +34,9 @@ def list_data_elements(
     data_definition: str = None,
     form_label: str = None,
     description: str = None,
-    tooltip: str = None
+    tooltip: str = None,
+    limit: int = 50,
+    offset: int = 0
 ):
     """
     Return list of custom data elements from Unifier. 
@@ -66,14 +49,15 @@ def list_data_elements(
     if description: filter_options["description"] = description
     if tooltip: filter_options["tooltip"] = tooltip
 
-    return get_data_elements(filter_options=filter_options if filter_options else None)
-
+    return get_data_elements(filter_options=filter_options if filter_options else None, limit=limit, offset=offset)
 
 @mcp.tool()
 def list_data_definitions(
     df_type: str = None,
     name: str = None,
-    data_source: str = None
+    data_source: str = None,
+    limit: int = 50,
+    offset: int = 0
 ):
     """
     Return list of data definitions from Unifier.
@@ -85,8 +69,7 @@ def list_data_definitions(
     if name: filter_options["name"] = name
     if data_source: filter_options["data_source"] = data_source
 
-    return get_data_definitions(df_type=df_type, filter_options=filter_options if filter_options else None)
-
+    return get_data_definitions(df_type=df_type, filter_options=filter_options if filter_options else None, limit=limit, offset=offset)
 
 @mcp.tool()
 def create_data_element(
@@ -118,7 +101,6 @@ def create_data_element(
     if description: element_data["description"] = description
     if tooltip: element_data["tooltip"] = tooltip
     
-    # Conditional fields based on data_definition
     if data_definition == "Decimal Amount":
         element_data["decimal_format"] = decimal_format
     elif data_definition in ["Image Picker", "SYS Rich Text"]:
@@ -130,20 +112,111 @@ def create_data_element(
 
     return create_data_elements([element_data])
 
+@mcp.tool()
+def bulk_create_data_elements_from_excel(file_path: str) -> str:
+    """
+    Read data elements from an Excel file and create them in Unifier in bulk.
+    Generates an 'api_response.xlsx' report in the same directory as the input file.
+    
+    file_path: Absolute path to the Excel file containing the 'DataElementCR_Inp' sheet.
+    """
+    try:
+        df = pd.read_excel(file_path, sheet_name='DataElementCR_Inp', dtype=str)
+        # Replace NaN with empty strings (equivalent to the legacy script's np.nan replacement)
+        df = df.fillna('')
+        data_records = df.to_dict(orient='records')
+        
+        if not data_records:
+            return "No data found in sheet 'DataElementCR_Inp'."
 
+        # Call existing API client
+        result = create_data_elements(data_records)
+        
+        # Parse response for report generation
+        messages = result.get("message", [])
+        if not messages:
+            return "API call succeeded but no detail messages returned to export."
+
+        records = [
+            {
+                "Data_Element_Name": msg.get("data_element", ""),
+                "Integration_Message": msg.get("message", ""),
+                "status_code": msg.get("status", "")
+            }
+            for msg in messages
+        ]
+        
+        out_df = pd.DataFrame(records)
+        input_dir = os.path.dirname(file_path)
+        output_file = os.path.normpath(os.path.join(input_dir, "api_response.xlsx"))
+        
+        try:
+            # Check if file is locked
+            with open(output_file, "a"):
+                pass
+            out_df.to_excel(output_file, index=False)
+            report_msg = f"Excel report saved successfully to: {output_file}"
+        except PermissionError:
+            fallback_name = f"api_response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            fallback = os.path.normpath(os.path.join(input_dir, fallback_name))
+            out_df.to_excel(fallback, index=False)
+            report_msg = f"Target file was locked. Saved fallback report to: {fallback}"
+            
+        return f"Bulk creation executed. Processed {len(data_records)} records. {report_msg}"
+
+    except Exception as e:
+        return f"Error executing bulk creation: {str(e)}"
+
+@mcp.tool()
+def list_users(
+    filter_condition: str = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """
+    Return list of users from Unifier. 
+    This uses the POST /admin/user/get endpoint.
+    filter_condition: Criteria to filter users (e.g., 'uuu_user_status=1' for active users).
+    """
+    return get_users(filter_condition=filter_condition, limit=limit, offset=offset)
+
+@mcp.tool()
+def list_bp_records(
+    bpname: str,
+    project_number: str = None,
+    record_fields: str = None,
+    filter_condition: str = None,
+    filter_criteria: str = None,
+    fetch_lineitems: bool = False,
+    limit: int = 50,
+    offset: int = 0
+):
+    """
+    Fetch a list of Business Process (BP) records from a specific project or company level.
+    bpname: The name of the BP (e.g., 'Vendors').
+    project_number: The project number. If empty, fetches company level BP records.
+    record_fields: Semicolon separated list of data element names to return.
+    filter_condition: Simple string filter (e.g., 'status=Active').
+    filter_criteria: Advanced JSON string for filtering.
+    fetch_lineitems: True to return line item details, False defaults to 'no'.
+    """
+    options = {}
+    options["lineitem"] = "yes" if fetch_lineitems else "no"
+    
+    if record_fields:
+        options["record_fields"] = record_fields
+    if filter_condition:
+        options["filter_condition"] = filter_condition
+    if filter_criteria:
+        import json
+        try:
+            options["filter_criteria"] = json.loads(filter_criteria)
+        except json.JSONDecodeError:
+            options["filter_criteria"] = filter_criteria # Pass as string if parsed fails, let API decide
+
+    return get_bp_records(bpname=bpname, project_number=project_number, options=options, limit=limit, offset=offset)
 
 if __name__ == "__main__":
-    mcp.run()
-
-
-
-    # @mcp.tool()
-# def project_cost(project_id: str):
-#     """Return cost information for a project"""
-#     return get_project_cost(project_id)
-
-
-# @mcp.tool()
-# def project_rfis(project_id: str):
-#     """Return open RFIs for a project"""
-#     return get_rfis(project_id)
+    # Restore the original stdout for the MCP protocol just before running
+    sys.stdout = _original_stdout
+    mcp.run(transport='stdio')
