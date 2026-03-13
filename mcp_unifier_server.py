@@ -11,24 +11,17 @@ load_dotenv()
 # Save the original print and stdout
 _original_stdout = sys.stdout
 _original_print = builtins.print
-
 # Override print to always go to stderr
 def silent_print(*args, **kwargs):
     kwargs['file'] = sys.stderr
     _original_print(*args, **kwargs)
-
 builtins.print = silent_print
 sys.stdout = sys.stderr
-
-
-
 mcp = FastMCP("unifier-gemini")
-
 @mcp.tool()
 def list_projects(shell_type: str = "Projects", limit: int = 50, offset: int = 0):
     """Return list of projects from Unifier"""
     return get_projects(shell_type=shell_type, limit=limit, offset=offset)
-
 @mcp.tool()
 def list_data_elements(
     data_element: str = None,
@@ -49,9 +42,7 @@ def list_data_elements(
     if form_label: filter_options["form_label"] = form_label
     if description: filter_options["description"] = description
     if tooltip: filter_options["tooltip"] = tooltip
-
     return get_data_elements(filter_options=filter_options if filter_options else None, limit=limit, offset=offset)
-
 @mcp.tool()
 def list_data_definitions(
     df_type: str = None,
@@ -69,9 +60,7 @@ def list_data_definitions(
     filter_options = {}
     if name: filter_options["name"] = name
     if data_source: filter_options["data_source"] = data_source
-
     return get_data_definitions(df_type=df_type, filter_options=filter_options if filter_options else None, limit=limit, offset=offset)
-
 @mcp.tool()
 def create_data_element(
     data_element: str,
@@ -110,9 +99,7 @@ def create_data_element(
         if no_of_lines: element_data["no_of_lines"] = no_of_lines
     elif data_definition == "SYS Numeric Query Based":
         element_data["hide_currency_symbol"] = hide_currency_symbol
-
     return create_data_elements([element_data])
-
 @mcp.tool()
 def bulk_create_data_elements_from_excel(file_path: str) -> str:
     """
@@ -125,8 +112,7 @@ def bulk_create_data_elements_from_excel(file_path: str) -> str:
         df = pd.read_excel(file_path, sheet_name='DataElementCR_Inp', dtype=str)
         # Replace NaN with empty strings (equivalent to the legacy script's np.nan replacement)
         df = df.fillna('')
-        data_records = df.to_dict(orient='records')
-        
+        data_records = df.to_dict(orient='records')   
         if not data_records:
             return "No data found in sheet 'DataElementCR_Inp'."
 
@@ -146,7 +132,6 @@ def bulk_create_data_elements_from_excel(file_path: str) -> str:
             }
             for msg in messages
         ]
-        
         out_df = pd.DataFrame(records)
         input_dir = os.path.dirname(file_path)
         output_file = os.path.normpath(os.path.join(input_dir, "api_response.xlsx"))
@@ -162,12 +147,9 @@ def bulk_create_data_elements_from_excel(file_path: str) -> str:
             fallback = os.path.normpath(os.path.join(input_dir, fallback_name))
             out_df.to_excel(fallback, index=False)
             report_msg = f"Target file was locked. Saved fallback report to: {fallback}"
-            
         return f"Bulk creation executed. Processed {len(data_records)} records. {report_msg}"
-
     except Exception as e:
         return f"Error executing bulk creation: {str(e)}"
-
 @mcp.tool()
 def list_users(
     filter_condition: str = None,
@@ -180,7 +162,6 @@ def list_users(
     filter_condition: Criteria to filter users (e.g., 'uuu_user_status=1' for active users).
     """
     return get_users(filter_condition=filter_condition, limit=limit, offset=offset)
-
 @mcp.tool()
 def list_bp_records(
     bpname: str,
@@ -214,24 +195,18 @@ def list_bp_records(
             options["filter_criteria"] = json.loads(filter_criteria)
         except json.JSONDecodeError:
             options["filter_criteria"] = filter_criteria # Pass as string if parsed fails, let API decide
-
     return get_bp_records(bpname=bpname, project_number=project_number, options=options, limit=limit, offset=offset)
-
 # if __name__ == "__main__":
 #     # Restore the original stdout for the MCP protocol just before running
 #     sys.stdout = _original_stdout
 #     mcp.run(transport='stdio')
 if __name__ == "__main__":
-
     port = os.environ.get("PORT")
-
     if port:
         print(f"Running in HTTP mode on port {port}", file=sys.stderr)
         mcp.run(transport="http", host="0.0.0.0", port=int(port))
     else:
         print("Running in STDIO mode (local development)", file=sys.stderr)
-
         # Restore stdout only for MCP stdio transport
         sys.stdout = _original_stdout
-
         mcp.run(transport="stdio")
