@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 import builtins
 from fastmcp import FastMCP
 from unifier_client import get_projects, get_data_elements, get_data_definitions, create_data_elements, get_users, get_bp_records
@@ -200,13 +200,18 @@ def list_bp_records(
 #     # Restore the original stdout for the MCP protocol just before running
 #     sys.stdout = _original_stdout
 #     mcp.run(transport='stdio')
+# if __name__ == "__main__":
+#     port = os.environ.get("PORT")
+#     if port:
+#         print(f"Running in HTTP mode on port {port}", file=sys.stderr)
+#         mcp.run(transport="http", host="0.0.0.0", port=int(port))
+#     else:
+#         print("Running in STDIO mode (local development)", file=sys.stderr)
+#         # Restore stdout only for MCP stdio transport
+#         sys.stdout = _original_stdout
+#         mcp.run(transport="stdio")
+
 if __name__ == "__main__":
-    port = os.environ.get("PORT")
-    if port:
-        print(f"Running in HTTP mode on port {port}", file=sys.stderr)
-        mcp.run(transport="http", host="0.0.0.0", port=int(port))
-    else:
-        print("Running in STDIO mode (local development)", file=sys.stderr)
-        # Restore stdout only for MCP stdio transport
-        sys.stdout = _original_stdout
-        mcp.run(transport="stdio")
+    print("Running in STDIO mode", file=sys.stderr)
+    sys.stdout = _original_stdout
+    mcp.run(transport="stdio")
